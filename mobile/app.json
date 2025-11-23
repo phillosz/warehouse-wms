@@ -8,7 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "extra": {
-      "apiUrl": "http://172.20.10.5:3000/api"
+      "apiUrl": "https://warehouse-wms.onrender.com/api"
     },
     "splash": {
       "image": "./assets/splash.png",
