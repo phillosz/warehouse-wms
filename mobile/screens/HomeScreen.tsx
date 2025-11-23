@@ -13,7 +13,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadRails();
-  }, []);
+  }, [user]);
 
   const loadRails = async () => {
     setLoading(true);
