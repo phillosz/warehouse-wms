@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -9,6 +9,7 @@ export default function ScanScreen() {
   const [scanned, setScanned] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
   const [processing, setProcessing] = useState(false);
+  const processingRef = useRef(false); // Use ref for immediate blocking
   const navigation = useNavigation<any>();
 
   useEffect(() => {
@@ -23,31 +24,37 @@ export default function ScanScreen() {
     React.useCallback(() => {
       setScanned(false);
       setProcessing(false);
+      processingRef.current = false; // Reset ref
       // Force camera remount by changing key
       setCameraKey(prev => prev + 1);
       return () => {
         // Cleanup when leaving screen
         setScanned(false);
         setProcessing(false);
+        processingRef.current = false;
       };
     }, [])
   );
 
-  const handleBarCodeScanned = async ({ data }: { type: string; data: string }) => {
-    // Prevent multiple scans - STRICT blocking
-    if (scanned || processing) {
-      console.log('Scan blocked - already processing');
+  const handleBarCodeScanned = ({ data }: { type: string; data: string }) => {
+    // IMMEDIATE blocking using ref - this is synchronous!
+    if (processingRef.current) {
+      console.log('❌ Blocked - already processing');
       return;
     }
     
-    // Immediately block any further scans
-    setScanned(true);
+    // Block immediately with ref (synchronous)
+    processingRef.current = true;
     setProcessing(true);
-    console.log('Scanned EAN:', data);
+    setScanned(true);
+    
+    console.log('✅ Scanned EAN:', data);
+    
+    // Process in separate async function to avoid race conditions
+    processBarcode(data);
+  };
 
-    // Add small delay to prevent race conditions
-    await new Promise(resolve => setTimeout(resolve, 100));
-
+  const processBarcode = async (data: string) => {
     try {
       // Try to find existing roll
       const rolls = await import('../services/api').then(m => m.searchRolls({ query: data, limit: 1 }));
@@ -59,6 +66,7 @@ export default function ScanScreen() {
         setTimeout(() => {
           setScanned(false);
           setProcessing(false);
+          processingRef.current = false;
         }, 2000);
       } else {
         // New roll - show alert (only once)
@@ -73,6 +81,7 @@ export default function ScanScreen() {
                 setTimeout(() => {
                   setScanned(false);
                   setProcessing(false);
+                  processingRef.current = false;
                 }, 500);
               },
               style: 'cancel'
@@ -85,6 +94,7 @@ export default function ScanScreen() {
                 setTimeout(() => {
                   setScanned(false);
                   setProcessing(false);
+                  processingRef.current = false;
                 }, 2000);
               }
             }
@@ -95,6 +105,7 @@ export default function ScanScreen() {
               setTimeout(() => {
                 setScanned(false);
                 setProcessing(false);
+                processingRef.current = false;
               }, 500);
             }
           }
@@ -107,6 +118,7 @@ export default function ScanScreen() {
       setTimeout(() => {
         setScanned(false);
         setProcessing(false);
+        processingRef.current = false;
       }, 1000);
     }
   };
@@ -138,7 +150,7 @@ export default function ScanScreen() {
       <CameraView
         key={`camera-${cameraKey}`}
         style={styles.camera}
-        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        onBarcodeScanned={processing ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{
           barcodeTypes: ['ean13', 'ean8', 'qr', 'code128'],
         }}
@@ -148,11 +160,15 @@ export default function ScanScreen() {
         </View>
       </CameraView>
 
-      {scanned && (
+      {(scanned || processing) && (
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.button}
-            onPress={() => setScanned(false)}
+            onPress={() => {
+              setScanned(false);
+              setProcessing(false);
+              processingRef.current = false;
+            }}
           >
             <Text style={styles.buttonText}>Skenovat znovu</Text>
           </TouchableOpacity>
