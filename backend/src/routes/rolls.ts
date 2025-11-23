@@ -7,7 +7,18 @@ const router = Router();
 // GET /api/rolls - Search rolls
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { query, status, railCode, limit = '50' } = req.query;
+    const { 
+      query, 
+      status, 
+      railCode, 
+      widthMin, 
+      widthMax, 
+      grammageMin, 
+      grammageMax, 
+      color, 
+      supplier, 
+      limit = '50' 
+    } = req.query;
     
     const rolls = await prisma.roll.findMany({
       where: {
@@ -19,6 +30,12 @@ router.get('/', async (req: Request, res: Response) => {
             { description: { contains: query as string, mode: 'insensitive' } }
           ]
         }),
+        ...(widthMin && { widthMm: { gte: parseInt(widthMin as string) } }),
+        ...(widthMax && { widthMm: { lte: parseInt(widthMax as string) } }),
+        ...(grammageMin && { grammageGm2: { gte: parseInt(grammageMin as string) } }),
+        ...(grammageMax && { grammageGm2: { lte: parseInt(grammageMax as string) } }),
+        ...(color && { color: { contains: color as string, mode: 'insensitive' } }),
+        ...(supplier && { supplier: { contains: supplier as string, mode: 'insensitive' } }),
         ...(railCode && {
           location: {
             rail: {
@@ -103,6 +120,7 @@ router.post('/receive', async (req: Request, res: Response) => {
       color,
       supplier,
       batchNo,
+      photo,
       toRailCode,
       userId,
       deviceId
@@ -147,6 +165,7 @@ router.post('/receive', async (req: Request, res: Response) => {
           color,
           supplier,
           batchNo,
+          photo,
           status: 'active'
         }
       });
@@ -332,6 +351,81 @@ router.post('/:id/remove', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error removing roll:', error);
     res.status(500).json({ error: 'Failed to remove roll' });
+  }
+});
+
+// POST /api/rolls/batch-move - Move multiple rolls at once
+router.post('/batch-move', async (req: Request, res: Response) => {
+  try {
+    const { rollIds, toRailCode, userId, deviceId } = req.body;
+
+    if (!rollIds || !Array.isArray(rollIds) || rollIds.length === 0) {
+      return res.status(400).json({ error: 'Missing or invalid rollIds array' });
+    }
+
+    if (!toRailCode || !userId) {
+      return res.status(400).json({ error: 'Missing required fields: toRailCode, userId' });
+    }
+
+    // Check if rail exists
+    const rail = await prisma.rail.findUnique({
+      where: { code: toRailCode }
+    });
+
+    if (!rail) {
+      return res.status(404).json({ error: 'Rail not found' });
+    }
+
+    // Move all rolls in transaction
+    const movements = await prisma.$transaction(async (tx) => {
+      const results = [];
+
+      for (const rollId of rollIds) {
+        // Get current location
+        const location = await tx.location.findUnique({
+          where: { rollId },
+          include: { rail: true }
+        });
+
+        if (!location) {
+          continue; // Skip rolls without location
+        }
+
+        // Create movement record
+        const movement = await tx.movement.create({
+          data: {
+            type: 'MOVE',
+            rollId,
+            fromRailId: location.railId,
+            toRailId: rail.id,
+            userId,
+            deviceId
+          }
+        });
+
+        // Update location
+        await tx.location.update({
+          where: { rollId },
+          data: {
+            railId: rail.id,
+            lastMovedAt: new Date()
+          }
+        });
+
+        results.push(movement);
+      }
+
+      return results;
+    });
+
+    res.json({
+      message: `Successfully moved ${movements.length} rolls`,
+      count: movements.length,
+      movements
+    });
+  } catch (error) {
+    console.error('Error in batch move:', error);
+    res.status(500).json({ error: 'Batch move failed' });
   }
 });
 

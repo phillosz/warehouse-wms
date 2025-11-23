@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { receiveRoll } from '../services/api';
 
 export default function ReceiveRollScreen() {
@@ -18,6 +19,7 @@ export default function ReceiveRollScreen() {
     color: '',
     supplier: '',
     batchNo: '',
+    photo: '',
   });
 
   const [selectedRailCode, setSelectedRailCode] = useState('');
@@ -33,6 +35,27 @@ export default function ReceiveRollScreen() {
         setSelectedRailCode(railCode);
       }
     });
+  };
+
+  const handlePickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (!permissionResult.granted) {
+      Alert.alert('Oprávnění', 'Aplikace potřebuje přístup k fotkám');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.5,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      updateField('photo', `data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
   };
 
   const handleSubmit = async () => {
@@ -60,6 +83,7 @@ export default function ReceiveRollScreen() {
         color: formData.color || undefined,
         supplier: formData.supplier || undefined,
         batchNo: formData.batchNo || undefined,
+        photo: formData.photo || undefined,
         toRailCode: selectedRailCode,
         userId,
         deviceId: deviceId || undefined
@@ -154,8 +178,24 @@ export default function ReceiveRollScreen() {
             style={styles.input}
             value={formData.batchNo}
             onChangeText={v => updateField('batchNo', v)}
-            placeholder="BATCH-2025-001"
+            placeholder="20231101-A"
           />
+
+          <Text style={styles.sectionTitle}>Fotografie</Text>
+          
+          <TouchableOpacity style={styles.photoButton} onPress={handlePickImage}>
+            <Text style={styles.photoButtonText}>
+              {formData.photo ? '📷 Změnit fotografii' : '📷 Přidat fotografii'}
+            </Text>
+          </TouchableOpacity>
+
+          {formData.photo && (
+            <Image 
+              source={{ uri: formData.photo }} 
+              style={styles.photoPreview}
+              resizeMode="cover"
+            />
+          )}
 
           <Text style={styles.sectionTitle}>Umístění *</Text>
 
@@ -228,6 +268,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  photoButton: {
+    backgroundColor: '#6C5CE7',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  photoButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  photoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginTop: 12,
   },
   submitButton: {
     backgroundColor: '#4CAF50',

@@ -62,6 +62,7 @@ model Roll {
   color        String?
   supplier     String?
   batchNo      String?
+  photo        String?  @db.Text // base64 encoded image
   receivedAt   DateTime @default(now())
   status       String   @default("active") // active, removed
   createdAt    DateTime @default(now())

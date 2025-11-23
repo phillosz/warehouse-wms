@@ -48,6 +48,7 @@ export interface Roll {
   color?: string;
   supplier?: string;
   batchNo?: string;
+  photo?: string;
   receivedAt: string;
   status: string;
   location?: {
@@ -121,6 +122,12 @@ export const searchRolls = async (params: {
   query?: string;
   status?: string;
   railCode?: string;
+  widthMin?: number;
+  widthMax?: number;
+  grammageMin?: number;
+  grammageMax?: number;
+  color?: string;
+  supplier?: string;
   limit?: number;
 }): Promise<Roll[]> => {
   const response = await api.get<{ rolls: Roll[] }>('/rolls', { params });
@@ -141,6 +148,7 @@ export const receiveRoll = async (data: {
   color?: string;
   supplier?: string;
   batchNo?: string;
+  photo?: string;
   toRailCode: string;
   userId: string;
   deviceId?: string;
@@ -170,6 +178,16 @@ export const removeRoll = async (
   }
 ): Promise<{ movement: Movement }> => {
   const response = await api.post(`/rolls/${rollId}/remove`, data);
+  return response.data;
+};
+
+export const batchMoveRolls = async (data: {
+  rollIds: string[];
+  toRailCode: string;
+  userId: string;
+  deviceId?: string;
+}): Promise<{ count: number; movements: Movement[] }> => {
+  const response = await api.post('/rolls/batch-move', data);
   return response.data;
 };
 

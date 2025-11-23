@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getRoll, moveRoll, removeRoll, Roll, Movement } from '../services/api';
@@ -113,6 +113,14 @@ export default function RollDetailScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      {roll.photo && (
+        <Image 
+          source={{ uri: roll.photo }} 
+          style={styles.heroImage}
+          resizeMode="cover"
+        />
+      )}
+      
       <View style={styles.card}>
         <Text style={styles.title}>{roll.materialName}</Text>
         <Text style={[
@@ -210,6 +218,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  heroImage: {
+    width: '100%',
+    height: 250,
   },
   loading: {
     flex: 1,
