@@ -8,6 +8,7 @@ export default function ScanScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
+  const [processing, setProcessing] = useState(false);
   const navigation = useNavigation<any>();
 
   useEffect(() => {
@@ -21,19 +22,23 @@ export default function ScanScreen() {
   useFocusEffect(
     React.useCallback(() => {
       setScanned(false);
+      setProcessing(false);
       // Force camera remount by changing key
       setCameraKey(prev => prev + 1);
       return () => {
         // Cleanup when leaving screen
         setScanned(false);
+        setProcessing(false);
       };
     }, [])
   );
 
   const handleBarCodeScanned = async ({ data }: { type: string; data: string }) => {
-    if (scanned) return;
+    // Prevent multiple scans
+    if (scanned || processing) return;
     
     setScanned(true);
+    setProcessing(true);
     console.log('Scanned EAN:', data);
 
     try {
@@ -43,8 +48,11 @@ export default function ScanScreen() {
       if (rolls.length > 0) {
         // Roll exists - show detail
         navigation.navigate('RollDetail', { rollId: rolls[0].id });
-        // Reset after navigation
-        setTimeout(() => setScanned(false), 500);
+        // Reset after navigation with longer delay
+        setTimeout(() => {
+          setScanned(false);
+          setProcessing(false);
+        }, 1000);
       } else {
         // New roll - go to receive screen
         Alert.alert(
@@ -53,24 +61,30 @@ export default function ScanScreen() {
           [
             {
               text: 'Zrušit',
-              onPress: () => setScanned(false),
+              onPress: () => {
+                setScanned(false);
+                setProcessing(false);
+              },
               style: 'cancel'
             },
             {
               text: 'Příjem',
               onPress: () => {
                 navigation.navigate('ReceiveRoll', { ean: data });
-                setTimeout(() => setScanned(false), 500);
+                setTimeout(() => {
+                  setScanned(false);
+                  setProcessing(false);
+                }, 1000);
               }
             }
-          ],
-          { cancelable: false }
+          ]
         );
       }
     } catch (error) {
       console.error('Scan error:', error);
       Alert.alert('Chyba', 'Nepodařilo se načíst informace o roli');
       setScanned(false);
+      setProcessing(false);
     }
   };
 
