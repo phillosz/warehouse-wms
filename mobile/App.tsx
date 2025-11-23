@@ -14,6 +14,7 @@ import RollDetailScreen from './screens/RollDetailScreen';
 import RailDetailScreen from './screens/RailDetailScreen';
 import SelectRailScreen from './screens/SelectRailScreen';
 import ReceiveRollScreen from './screens/ReceiveRollScreen';
+import EditRollScreen from './screens/EditRollScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -72,6 +73,11 @@ function AppNavigator() {
               name="RollDetail" 
               component={RollDetailScreen}
               options={{ title: 'Detail role' }}
+            />
+            <Stack.Screen 
+              name="EditRoll" 
+              component={EditRollScreen}
+              options={{ title: 'Upravit roli' }}
             />
             <Stack.Screen 
               name="RailDetail" 

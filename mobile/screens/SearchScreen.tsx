@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Alert, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { searchRolls, batchMoveRolls, Roll } from '../services/api';
+import { searchRolls, batchMoveRolls, getRails, Roll, Rail } from '../services/api';
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
@@ -12,6 +12,9 @@ export default function SearchScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [selectedRolls, setSelectedRolls] = useState<Set<string>>(new Set());
+  const [rails, setRails] = useState<Rail[]>([]);
+  const [showRailPicker, setShowRailPicker] = useState(false);
+  const [selectedRailCode, setSelectedRailCode] = useState<string>('');
   const navigation = useNavigation<any>();
 
   // Advanced filters
@@ -24,35 +27,57 @@ export default function SearchScreen() {
     supplier: '',
   });
 
+  useEffect(() => {
+    loadRails();
+  }, []);
+
+  const loadRails = async () => {
+    try {
+      const allRails = await getRails();
+      setRails(allRails);
+    } catch (error) {
+      console.error('Failed to load rails:', error);
+    }
+  };
+
   const updateFilter = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
   const handleSearch = async () => {
-    if (!query.trim() && !filters.color && !filters.supplier) return;
-
     setLoading(true);
     try {
       const rolls = await searchRolls({ 
-        query, 
+        query: query.trim() || undefined,
         status, 
+        railCode: selectedRailCode || undefined,
         widthMin: filters.widthMin ? parseInt(filters.widthMin) : undefined,
         widthMax: filters.widthMax ? parseInt(filters.widthMax) : undefined,
         grammageMin: filters.grammageMin ? parseInt(filters.grammageMin) : undefined,
         grammageMax: filters.grammageMax ? parseInt(filters.grammageMax) : undefined,
         color: filters.color || undefined,
         supplier: filters.supplier || undefined,
-        limit: 50 
+        limit: 100 
       });
       setResults(rolls);
-      setBatchMode(false);
-      setSelectedRolls(new Set());
+      if (!batchMode) {
+        setSelectedRolls(new Set());
+      }
     } catch (error) {
       console.error('Search error:', error);
       Alert.alert('Chyba', 'Vyhledávání selhalo');
     } finally {
       setLoading(false);
     }
+  };
+
+  const selectAllResults = () => {
+    const allIds = new Set(results.map(r => r.id));
+    setSelectedRolls(allIds);
+  };
+
+  const deselectAll = () => {
+    setSelectedRolls(new Set());
   };
 
   const toggleRollSelection = (rollId: string) => {
@@ -275,6 +300,26 @@ export default function SearchScreen() {
               value={filters.supplier}
               onChangeText={v => updateFilter('supplier', v)}
             />
+
+            <TouchableOpacity
+              style={styles.railPickerButton}
+              onPress={() => setShowRailPicker(true)}
+            >
+              <Text style={styles.railPickerText}>
+                {selectedRailCode ? `📍 Kolejnice: ${selectedRailCode}` : '📍 Vybrat kolejnici'}
+              </Text>
+              {selectedRailCode && (
+                <TouchableOpacity
+                  style={styles.clearRailButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setSelectedRailCode('');
+                  }}
+                >
+                  <Text style={styles.clearRailText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
           </View>
         )}
 
@@ -292,11 +337,25 @@ export default function SearchScreen() {
       {batchMode && selectedRolls.size > 0 && (
         <View style={styles.batchActions}>
           <TouchableOpacity
+            style={styles.selectAllButton}
+            onPress={selectAllResults}
+          >
+            <Text style={styles.selectAllText}>Vybrat vše ({results.length})</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.deselectButton}
+            onPress={deselectAll}
+          >
+            <Text style={styles.deselectText}>Zrušit výběr</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
             style={styles.batchButton}
             onPress={handleBatchMove}
           >
             <Text style={styles.batchButtonText}>
-              Přesunout vybrané ({selectedRolls.size})
+              Přesunout ({selectedRolls.size})
             </Text>
           </TouchableOpacity>
         </View>
@@ -309,10 +368,51 @@ export default function SearchScreen() {
         contentContainerStyle={styles.resultsList}
         ListEmptyComponent={
           <Text style={styles.emptyText}>
-            {query ? 'Žádné výsledky' : 'Zadejte hledaný výraz'}
+            {loading ? '' : (results.length === 0 && query) ? 'Žádné výsledky' : 'Klikněte na Hledat pro zobrazení rolí'}
           </Text>
         }
       />
+
+      <Modal
+        visible={showRailPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowRailPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Vybrat kolejnici</Text>
+              <TouchableOpacity onPress={() => setShowRailPicker(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <FlatList
+              data={rails}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.railItem,
+                    selectedRailCode === item.code && styles.railItemSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedRailCode(item.code);
+                    setShowRailPicker(false);
+                  }}
+                >
+                  <Text style={styles.railCode}>{item.code}</Text>
+                  {item.name && <Text style={styles.railName}>{item.name}</Text>}
+                  {selectedRailCode === item.code && (
+                    <Text style={styles.railCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -432,6 +532,31 @@ const styles = StyleSheet.create({
   halfInput: {
     flex: 1,
   },
+  railPickerButton: {
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  railPickerText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  clearRailButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  clearRailText: {
+    fontSize: 18,
+    color: '#F44336',
+    fontWeight: '600',
+  },
   searchButton: {
     backgroundColor: '#007AFF',
     padding: 12,
@@ -448,10 +573,37 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  selectAllButton: {
+    flex: 1,
+    backgroundColor: '#6C5CE7',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  selectAllText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deselectButton: {
+    flex: 1,
+    backgroundColor: '#999',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  deselectText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   batchButton: {
+    flex: 1,
     backgroundColor: '#4CAF50',
-    padding: 14,
+    padding: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
@@ -544,5 +696,62 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 16,
     marginTop: 40,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalClose: {
+    fontSize: 24,
+    color: '#999',
+    fontWeight: '300',
+  },
+  railItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  railItemSelected: {
+    backgroundColor: '#E3F2FD',
+  },
+  railCode: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  railName: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+    marginLeft: 12,
+  },
+  railCheckmark: {
+    fontSize: 20,
+    color: '#007AFF',
+    fontWeight: 'bold',
   },
 });

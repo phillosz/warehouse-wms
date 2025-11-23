@@ -108,6 +108,42 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// PUT /api/rolls/:id - Update roll details
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      materialName,
+      description,
+      widthMm,
+      grammageGm2,
+      color,
+      supplier,
+      batchNo,
+      photo
+    } = req.body;
+
+    const roll = await prisma.roll.update({
+      where: { id },
+      data: {
+        ...(materialName && { materialName }),
+        ...(description !== undefined && { description }),
+        ...(widthMm !== undefined && { widthMm }),
+        ...(grammageGm2 !== undefined && { grammageGm2 }),
+        ...(color !== undefined && { color }),
+        ...(supplier !== undefined && { supplier }),
+        ...(batchNo !== undefined && { batchNo }),
+        ...(photo !== undefined && { photo })
+      }
+    });
+
+    res.json({ roll });
+  } catch (error) {
+    console.error('Error updating roll:', error);
+    res.status(500).json({ error: 'Failed to update roll' });
+  }
+});
+
 // POST /api/rolls/receive - Receive new roll
 router.post('/receive', async (req: Request, res: Response) => {
   try {

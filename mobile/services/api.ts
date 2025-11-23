@@ -139,6 +139,20 @@ export const getRoll = async (id: string): Promise<Roll & { movements: Movement[
   return response.data;
 };
 
+export const updateRoll = async (id: string, data: {
+  materialName?: string;
+  description?: string;
+  widthMm?: number;
+  grammageGm2?: number;
+  color?: string;
+  supplier?: string;
+  batchNo?: string;
+  photo?: string;
+}): Promise<{ roll: Roll }> => {
+  const response = await api.put(`/rolls/${id}`, data);
+  return response.data;
+};
+
 export const receiveRoll = async (data: {
   ean: string;
   materialName: string;

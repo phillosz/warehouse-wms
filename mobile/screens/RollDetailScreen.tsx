@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getRoll, moveRoll, removeRoll, Roll, Movement } from '../services/api';
@@ -11,6 +11,7 @@ export default function RollDetailScreen() {
 
   const [roll, setRoll] = useState<(Roll & { movements: Movement[] }) | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showFullscreen, setShowFullscreen] = useState(false);
 
   useEffect(() => {
     loadRoll();
@@ -114,11 +115,13 @@ export default function RollDetailScreen() {
   return (
     <ScrollView style={styles.container}>
       {roll.photo && (
-        <Image 
-          source={{ uri: roll.photo }} 
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
+        <TouchableOpacity onPress={() => setShowFullscreen(true)} activeOpacity={0.9}>
+          <Image 
+            source={{ uri: roll.photo }} 
+            style={styles.heroImage}
+            resizeMode="cover"
+          />
+        </TouchableOpacity>
       )}
       
       <View style={styles.card}>
@@ -160,6 +163,13 @@ export default function RollDetailScreen() {
 
       {roll.status === 'active' && (
         <View style={styles.actions}>
+          <TouchableOpacity 
+            style={styles.editButton} 
+            onPress={() => navigation.navigate('EditRoll', { rollId: roll.id })}
+          >
+            <Text style={styles.buttonText}>Upravit</Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.moveButton} onPress={handleMove}>
             <Text style={styles.buttonText}>Přesunout</Text>
           </TouchableOpacity>
@@ -201,6 +211,29 @@ export default function RollDetailScreen() {
           ))}
         </View>
       )}
+
+      <Modal
+        visible={showFullscreen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowFullscreen(false)}
+      >
+        <View style={styles.fullscreenContainer}>
+          <TouchableOpacity 
+            style={styles.fullscreenClose}
+            onPress={() => setShowFullscreen(false)}
+          >
+            <Text style={styles.fullscreenCloseText}>✕</Text>
+          </TouchableOpacity>
+          {roll?.photo && (
+            <Image 
+              source={{ uri: roll.photo }} 
+              style={styles.fullscreenImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -304,6 +337,13 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     gap: 12,
   },
+  editButton: {
+    flex: 1,
+    backgroundColor: '#6C5CE7',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
   moveButton: {
     flex: 1,
     backgroundColor: '#007AFF',
@@ -355,5 +395,32 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#eee',
     marginTop: 12,
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenCloseText: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '300',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
   },
 });

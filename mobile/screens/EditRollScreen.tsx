@@ -1,17 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { receiveRoll } from '../services/api';
+import { getRoll, updateRoll, Roll } from '../services/api';
 
-export default function ReceiveRollScreen() {
+export default function EditRollScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const { ean } = route.params || {};
+  const { rollId } = route.params;
 
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    ean: ean || '',
     materialName: '',
     description: '',
     widthMm: '',
@@ -22,24 +21,36 @@ export default function ReceiveRollScreen() {
     photo: '',
   });
 
-  const [selectedRailCode, setSelectedRailCode] = useState('');
-  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    loadRoll();
+  }, [rollId]);
+
+  const loadRoll = async () => {
+    try {
+      const roll = await getRoll(rollId);
+      setFormData({
+        materialName: roll.materialName,
+        description: roll.description || '',
+        widthMm: roll.widthMm?.toString() || '',
+        grammageGm2: roll.grammageGm2?.toString() || '',
+        color: roll.color || '',
+        supplier: roll.supplier || '',
+        batchNo: roll.batchNo || '',
+        photo: roll.photo || '',
+      });
+    } catch (error) {
+      console.error('Failed to load roll:', error);
+      Alert.alert('Chyba', 'Nepodařilo se načíst roli');
+    }
+  };
 
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSelectRail = () => {
-    navigation.navigate('SelectRail', {
-      onSelect: (railCode: string) => {
-        setSelectedRailCode(railCode);
-      }
-    });
-  };
-
   const handlePickImage = async () => {
     Alert.alert(
-      'Přidat fotku',
+      'Změnit fotku',
       'Vyberte zdroj fotografie',
       [
         {
@@ -88,6 +99,11 @@ export default function ReceiveRollScreen() {
           }
         },
         {
+          text: 'Odebrat fotku',
+          style: 'destructive',
+          onPress: () => updateField('photo', '')
+        },
+        {
           text: 'Zrušit',
           style: 'cancel'
         }
@@ -96,41 +112,38 @@ export default function ReceiveRollScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.ean || !formData.materialName || !selectedRailCode) {
-      Alert.alert('Chyba', 'Vyplňte prosím EAN, název materiálu a vyberte kolejnici');
+    if (!formData.materialName.trim()) {
+      Alert.alert('Chyba', 'Vyplňte prosím název materiálu');
       return;
     }
 
     setLoading(true);
     try {
-      const userId = await AsyncStorage.getItem('userId');
-      const deviceId = await AsyncStorage.getItem('deviceId');
+      const updateData: any = {
+        materialName: formData.materialName.trim(),
+      };
 
-      if (!userId) {
-        Alert.alert('Chyba', 'Uživatel není přihlášen');
-        return;
-      }
+      if (formData.description.trim()) updateData.description = formData.description.trim();
+      if (formData.widthMm.trim()) updateData.widthMm = parseInt(formData.widthMm);
+      if (formData.grammageGm2.trim()) updateData.grammageGm2 = parseInt(formData.grammageGm2);
+      if (formData.color.trim()) updateData.color = formData.color.trim();
+      if (formData.supplier.trim()) updateData.supplier = formData.supplier.trim();
+      if (formData.batchNo.trim()) updateData.batchNo = formData.batchNo.trim();
+      if (formData.photo) updateData.photo = formData.photo;
 
-      await receiveRoll({
-        ean: formData.ean,
-        materialName: formData.materialName,
-        description: formData.description || undefined,
-        widthMm: formData.widthMm ? parseInt(formData.widthMm) : undefined,
-        grammageGm2: formData.grammageGm2 ? parseInt(formData.grammageGm2) : undefined,
-        color: formData.color || undefined,
-        supplier: formData.supplier || undefined,
-        batchNo: formData.batchNo || undefined,
-        photo: formData.photo || undefined,
-        toRailCode: selectedRailCode,
-        userId,
-        deviceId: deviceId || undefined
-      });
+      const result = await updateRoll(rollId, updateData);
+      console.log('Roll updated successfully:', result);
 
-      Alert.alert('Úspěch', 'Role úspěšně přijata');
-      navigation.goBack();
+      Alert.alert('Úspěch', 'Role úspěšně upravena', [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack()
+        }
+      ]);
     } catch (error: any) {
-      console.error('Receive error:', error);
-      Alert.alert('Chyba', error.response?.data?.error || 'Příjem role selhal');
+      console.error('Update error:', error);
+      console.error('Error response:', error.response?.data);
+      Alert.alert('Chyba', error.response?.data?.error || 'Úprava role selhala');
     } finally {
       setLoading(false);
     }
@@ -143,17 +156,8 @@ export default function ReceiveRollScreen() {
     >
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
-          <Text style={styles.sectionTitle}>Základní údaje *</Text>
+          <Text style={styles.sectionTitle}>Základní údaje</Text>
           
-          <Text style={styles.label}>EAN kód *</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.ean}
-            onChangeText={v => updateField('ean', v)}
-            placeholder="859500000001"
-            keyboardType="numeric"
-          />
-
           <Text style={styles.label}>Název materiálu *</Text>
           <TextInput
             style={styles.input}
@@ -234,21 +238,13 @@ export default function ReceiveRollScreen() {
             />
           )}
 
-          <Text style={styles.sectionTitle}>Umístění *</Text>
-
-          <TouchableOpacity style={styles.railButton} onPress={handleSelectRail}>
-            <Text style={styles.railButtonText}>
-              {selectedRailCode ? `📍 ${selectedRailCode}` : 'Vybrat kolejnici'}
-            </Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={[styles.submitButton, loading && styles.submitButtonDisabled]}
             onPress={handleSubmit}
             disabled={loading}
           >
             <Text style={styles.submitButtonText}>
-              {loading ? 'Ukládám...' : 'Přijmout roli'}
+              {loading ? 'Ukládám...' : 'Uložit změny'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -294,18 +290,6 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
-  railButton: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  railButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   photoButton: {
     backgroundColor: '#6C5CE7',
     padding: 16,
@@ -337,7 +321,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
 });

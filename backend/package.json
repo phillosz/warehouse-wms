@@ -5,11 +5,13 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && npx prisma generate",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "render:build": "npm install && npx prisma generate && npm run build",
+    "render:start": "npx prisma migrate deploy && npm start"
   },
   "keywords": ["warehouse", "wms", "inventory"],
   "author": "",
