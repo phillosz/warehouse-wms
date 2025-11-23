@@ -1,0 +1,128 @@
+// Warehouse Management System - Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Warehouse {
+  id        String   @id @default(uuid())
+  name      String
+  zones     String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rails Rail[]
+
+  @@map("warehouses")
+}
+
+model Rail {
+  id          String   @id @default(uuid())
+  code        String   @unique // R-001, R-002, human-readable
+  name        String
+  warehouseId String
+  zone        String?
+  rowIndex    Int
+  colIndex    Int
+  posIndex    Int      @default(0)
+  
+  // Geometry for visual map (optional, in pixels or meters)
+  x           Float?
+  y           Float?
+  width       Float?
+  height      Float?
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  warehouse      Warehouse  @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  locations      Location[]
+  movementsFrom  Movement[] @relation("MovementFromRail")
+  movementsTo    Movement[] @relation("MovementToRail")
+
+  @@index([warehouseId])
+  @@index([code])
+  @@index([rowIndex, colIndex])
+  @@map("rails")
+}
+
+model Roll {
+  id           String   @id @default(uuid())
+  ean          String   @unique
+  materialName String
+  description  String?
+  widthMm      Int?
+  grammageGm2  Int?
+  color        String?
+  supplier     String?
+  batchNo      String?
+  receivedAt   DateTime @default(now())
+  status       String   @default("active") // active, removed
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  location  Location?
+  movements Movement[]
+
+  @@index([ean])
+  @@index([status])
+  @@index([materialName])
+  @@map("rolls")
+}
+
+model Location {
+  rollId       String   @id // 1:1 with active rolls
+  railId       String?  // NULL when removed
+  placedAt     DateTime
+  lastMovedAt  DateTime @updatedAt
+
+  roll Roll  @relation(fields: [rollId], references: [id], onDelete: Cascade)
+  rail Rail? @relation(fields: [railId], references: [id], onDelete: SetNull)
+
+  @@index([railId])
+  @@map("locations")
+}
+
+model Movement {
+  id          String   @id @default(uuid())
+  type        String   // RECEIVE, MOVE, REMOVE
+  rollId      String
+  fromRailId  String?
+  toRailId    String?
+  at          DateTime @default(now())
+  userId      String
+  deviceId    String?
+  attributes  Json?    // Extensible metadata
+  createdAt   DateTime @default(now())
+
+  roll     Roll  @relation(fields: [rollId], references: [id], onDelete: Cascade)
+  fromRail Rail? @relation("MovementFromRail", fields: [fromRailId], references: [id], onDelete: SetNull)
+  toRail   Rail? @relation("MovementToRail", fields: [toRailId], references: [id], onDelete: SetNull)
+  user     User  @relation(fields: [userId], references: [id])
+
+  @@index([rollId])
+  @@index([type])
+  @@index([at])
+  @@index([userId])
+  @@map("movements")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  role      String   @default("worker") // worker, supervisor, admin
+  deviceId  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movements Movement[]
+
+  @@index([deviceId])
+  @@map("users")
+}
