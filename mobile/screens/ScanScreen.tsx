@@ -34,27 +34,34 @@ export default function ScanScreen() {
   );
 
   const handleBarCodeScanned = async ({ data }: { type: string; data: string }) => {
-    // Prevent multiple scans
-    if (scanned || processing) return;
+    // Prevent multiple scans - STRICT blocking
+    if (scanned || processing) {
+      console.log('Scan blocked - already processing');
+      return;
+    }
     
+    // Immediately block any further scans
     setScanned(true);
     setProcessing(true);
     console.log('Scanned EAN:', data);
+
+    // Add small delay to prevent race conditions
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
       // Try to find existing roll
       const rolls = await import('../services/api').then(m => m.searchRolls({ query: data, limit: 1 }));
       
       if (rolls.length > 0) {
-        // Roll exists - show detail
+        // Roll exists - show detail immediately
         navigation.navigate('RollDetail', { rollId: rolls[0].id });
-        // Reset after navigation with longer delay
+        // Keep blocked for 2 seconds after navigation
         setTimeout(() => {
           setScanned(false);
           setProcessing(false);
-        }, 1000);
+        }, 2000);
       } else {
-        // New roll - go to receive screen
+        // New roll - show alert (only once)
         Alert.alert(
           'Nová role',
           'Tato role ještě není v systému. Chcete ji přijmout?',
@@ -62,8 +69,11 @@ export default function ScanScreen() {
             {
               text: 'Zrušit',
               onPress: () => {
-                setScanned(false);
-                setProcessing(false);
+                // Wait before allowing next scan
+                setTimeout(() => {
+                  setScanned(false);
+                  setProcessing(false);
+                }, 500);
               },
               style: 'cancel'
             },
@@ -71,20 +81,33 @@ export default function ScanScreen() {
               text: 'Příjem',
               onPress: () => {
                 navigation.navigate('ReceiveRoll', { ean: data });
+                // Keep blocked for 2 seconds after navigation
                 setTimeout(() => {
                   setScanned(false);
                   setProcessing(false);
-                }, 1000);
+                }, 2000);
               }
             }
-          ]
+          ],
+          {
+            onDismiss: () => {
+              // If dismissed by tapping outside (Android)
+              setTimeout(() => {
+                setScanned(false);
+                setProcessing(false);
+              }, 500);
+            }
+          }
         );
       }
     } catch (error) {
       console.error('Scan error:', error);
       Alert.alert('Chyba', 'Nepodařilo se načíst informace o roli');
-      setScanned(false);
-      setProcessing(false);
+      // Wait before allowing retry
+      setTimeout(() => {
+        setScanned(false);
+        setProcessing(false);
+      }, 1000);
     }
   };
 
